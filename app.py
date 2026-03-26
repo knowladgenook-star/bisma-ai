@@ -3,31 +3,39 @@ from openai import OpenAI
 import base64
 import os
 
-# Add your API key here
+# Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Page config
 st.set_page_config(page_title="Bisma.Ai", layout="wide")
 
+# ---------------- HEADER ----------------
 st.title("🌱 Bisma.Ai")
 st.subheader("Empowering ideas. Creating the future with AI.")
 st.write("Welcome to Bisma.Ai — your all-in-one AI assistant for creativity, productivity, and innovation.")
 
-# Sidebar
+st.markdown("---")
+
+# ---------------- SIDEBAR ----------------
+st.sidebar.title("🌱 Bisma.Ai")
+
 tool = st.sidebar.selectbox(
     "Choose Tool",
-    ["Chat", "Image Generator"]
+    ["Chatbot", "Image Generator"]
 )
 
-# ---------------- CHAT ----------------
-if tool == "Chat":
+# ---------------- CHATBOT ----------------
+if tool == "Chatbot":
+    st.subheader("💬 AI Chat Assistant")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Display previous messages
+    # Show chat history
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
 
-    # Input box
+    # User input
     user_input = st.chat_input("Ask anything...")
 
     if user_input:
@@ -46,6 +54,7 @@ if tool == "Chat":
 
 # ---------------- IMAGE GENERATOR ----------------
 elif tool == "Image Generator":
+    st.subheader("🎨 AI Image Generator")
 
     prompt = st.text_input("Describe your image")
 
@@ -57,10 +66,14 @@ elif tool == "Image Generator":
                 size="1024x1024"
             )
 
-            # FIX: decode base64 image
+            # Decode base64 image
             image_base64 = result.data[0].b64_json
             image_bytes = base64.b64decode(image_base64)
 
             st.image(image_bytes)
         else:
             st.warning("Please enter a prompt!")
+
+# ---------------- FOOTER ----------------
+st.markdown("---")
+st.caption("© 2026 Bisma.Ai — Built with AI")
