@@ -10,7 +10,7 @@ st.set_page_config(page_title="Bisma.Ai", layout="wide")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# ---------------- SESSION INIT ----------------
+# ---------------- SESSION ----------------
 if "user" not in st.session_state:
     st.session_state.user = None
 
@@ -36,7 +36,7 @@ h1 { color: #10b981; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN SYSTEM ----------------
+# ---------------- LOGIN ----------------
 def login():
     st.title("🔐 Login to Bisma.Ai")
 
@@ -59,12 +59,10 @@ def logout():
 # ---------------- MAIN APP ----------------
 def main_app():
 
-    # HEADER
     st.title("🌱 Bisma.Ai")
     st.caption("Empowering ideas. Creating the future with AI.")
 
-    # SIDEBAR
-    st.sidebar.write(f"👤 Logged in as: {st.session_state.user}")
+    st.sidebar.write(f"👤 {st.session_state.user}")
     if st.sidebar.button("Logout"):
         logout()
 
@@ -115,6 +113,8 @@ def main_app():
 
                 image = base64.b64decode(result.data[0].b64_json)
                 st.image(image)
+            else:
+                st.warning("Please enter a prompt")
 
     # ---------------- VIDEO ----------------
     elif tool == "Image → Video":
@@ -128,6 +128,11 @@ def main_app():
 
                 api_token = os.getenv("REPLICATE_API_TOKEN")
 
+                if not api_token:
+                    st.error("Missing REPLICATE_API_TOKEN ❌")
+                    st.stop()
+
+                # Upload image
                 files = {
                     "file": (uploaded_file.name, uploaded_file.read(), uploaded_file.type)
                 }
@@ -138,7 +143,15 @@ def main_app():
                     files=files
                 )
 
-                file_url = upload.json()["urls"]["get"]
+                upload_json = upload.json()
+
+                # ✅ SAFE CHECK (NO CRASH)
+                if "urls" not in upload_json:
+                    st.error("Image upload failed ❌")
+                    st.write(upload_json)
+                    st.stop()
+
+                file_url = upload_json["urls"]["get"]
 
                 headers = {
                     "Authorization": f"Token {api_token}",
@@ -159,9 +172,15 @@ def main_app():
                     json=data
                 ).json()
 
+                # SAFE CHECK
+                if "urls" not in prediction:
+                    st.error("Video generation failed ❌")
+                    st.write(prediction)
+                    st.stop()
+
                 status_url = prediction["urls"]["get"]
 
-                with st.spinner("Generating video..."):
+                with st.spinner("Generating video... ⏳"):
                     while True:
                         result = requests.get(status_url, headers=headers).json()
 
@@ -171,24 +190,31 @@ def main_app():
                             st.session_state.videos.append(video_url)
 
                             st.video(video_url)
+                            st.success("✅ Video ready!")
 
+                            # Download
                             video_bytes = requests.get(video_url).content
 
                             st.download_button(
-                                "📥 Download",
+                                "📥 Download Video",
                                 data=video_bytes,
-                                file_name="video.mp4"
+                                file_name="bisma_video.mp4",
+                                mime="video/mp4"
                             )
 
                             break
 
                         elif result["status"] == "failed":
-                            st.error("Failed")
+                            st.error("Video generation failed ❌")
+                            st.write(result)
                             break
 
                         time.sleep(3)
 
-        # GALLERY
+            else:
+                st.warning("Please upload an image!")
+
+        # ---------------- GALLERY ----------------
         if st.session_state.videos:
             st.markdown("## 🎬 Video Gallery")
 
