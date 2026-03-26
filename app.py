@@ -135,28 +135,9 @@ def main_app():
                     st.error("Missing REPLICATE_API_TOKEN ❌")
                     st.stop()
 
-                # ✅ FIXED FILE HANDLING
+                # ✅ Convert image to base64 (FINAL FIX)
                 image_bytes = uploaded_file.read()
-                uploaded_file.seek(0)
-
-                files = {
-                    "file": (uploaded_file.name, image_bytes, uploaded_file.type)
-                }
-
-                upload = requests.post(
-                    "https://api.replicate.com/v1/files",
-                    headers={"Authorization": f"Token {api_token}"},
-                    files=files
-                )
-
-                upload_json = upload.json()
-
-                if "urls" not in upload_json:
-                    st.error("Image upload failed ❌")
-                    st.write(upload_json)
-                    st.stop()
-
-                file_url = upload_json["urls"]["get"]
+                encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
                 headers = {
                     "Authorization": f"Token {api_token}",
@@ -166,7 +147,7 @@ def main_app():
                 data = {
                     "version": "7836b0c54b5f3a4f0b9b51d6d5d9c0c1f1a6d5c7a6d4f8c1b0a5c6d7e8f9g0",
                     "input": {
-                        "image": file_url,
+                        "image": f"data:image/png;base64,{encoded_image}",
                         "prompt": prompt if prompt else "cinematic motion"
                     }
                 }
