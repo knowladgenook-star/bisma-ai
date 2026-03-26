@@ -7,7 +7,9 @@ import os
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 st.set_page_config(page_title="Bisma.Ai", layout="wide")
 
-st.title("🔥 Bisma.Ai")
+st.title("🌱 Bisma.Ai")
+st.subheader("Empowering ideas. Creating the future with AI.")
+st.write("Welcome to Bisma.Ai — your all-in-one AI assistant for creativity, productivity, and innovation.")
 
 # Sidebar
 tool = st.sidebar.selectbox(
