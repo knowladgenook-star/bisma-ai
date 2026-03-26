@@ -9,10 +9,66 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Page config
 st.set_page_config(page_title="Bisma.Ai", layout="wide")
 
+# ---------------- CUSTOM STYLING ----------------
+st.markdown("""
+<style>
+/* Background */
+body {
+    background-color: #0e1117;
+}
+
+/* Main container */
+.block-container {
+    padding-top: 2rem;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #111827;
+}
+
+/* Buttons */
+.stButton>button {
+    background-color: #10b981;
+    color: white;
+    border-radius: 10px;
+    height: 3em;
+    width: 100%;
+    font-weight: bold;
+}
+
+/* Input box */
+.stTextInput>div>div>input {
+    border-radius: 10px;
+}
+
+/* Chat messages */
+[data-testid="stChatMessage"] {
+    background-color: #1f2937;
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+
+/* Titles */
+h1, h2, h3 {
+    color: #10b981;
+}
+
+/* Footer hide */
+footer {
+    visibility: hidden;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- HEADER ----------------
-st.title("🌱 Bisma.Ai")
-st.subheader("Empowering ideas. Creating the future with AI.")
-st.write("Welcome to Bisma.Ai — your all-in-one AI assistant for creativity, productivity, and innovation.")
+st.markdown("""
+<h1 style='text-align: center;'>🌱 Bisma.Ai</h1>
+<p style='text-align: center; color: gray;'>
+Empowering ideas. Creating the future with AI.
+</p>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -27,11 +83,12 @@ tool = st.sidebar.selectbox(
 # ---------------- CHATBOT ----------------
 if tool == "Chatbot":
     st.subheader("💬 AI Chat Assistant")
+    st.write("")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Show chat history
+    # Display chat history
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
 
@@ -55,6 +112,7 @@ if tool == "Chatbot":
 # ---------------- IMAGE GENERATOR ----------------
 elif tool == "Image Generator":
     st.subheader("🎨 AI Image Generator")
+    st.write("")
 
     prompt = st.text_input("Describe your image")
 
@@ -70,7 +128,7 @@ elif tool == "Image Generator":
             image_base64 = result.data[0].b64_json
             image_bytes = base64.b64decode(image_base64)
 
-            st.image(image_bytes)
+            st.image(image_bytes, use_container_width=True)
         else:
             st.warning("Please enter a prompt!")
 
