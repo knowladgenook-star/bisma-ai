@@ -135,7 +135,7 @@ def main_app():
                     st.error("Missing REPLICATE_API_TOKEN ❌")
                     st.stop()
 
-                # ✅ Convert image to base64 (FINAL FIX)
+                # ✅ Convert image to base64
                 image_bytes = uploaded_file.read()
                 encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -144,18 +144,17 @@ def main_app():
                     "Content-Type": "application/json"
                 }
 
-                data = {
-                    "version": "7836b0c54b5f3a4f0b9b51d6d5d9c0c1f1a6d5c7a6d4f8c1b0a5c6d7e8f9g0",
-                    "input": {
-                        "image": f"data:image/png;base64,{encoded_image}",
-                        "prompt": prompt if prompt else "cinematic motion"
-                    }
-                }
-
+                # ✅ USE MODEL NAME (NO VERSION ERROR)
                 prediction = requests.post(
                     "https://api.replicate.com/v1/predictions",
                     headers=headers,
-                    json=data
+                    json={
+                        "model": "stability-ai/stable-video-diffusion",
+                        "input": {
+                            "image": f"data:image/png;base64,{encoded_image}",
+                            "prompt": prompt if prompt else "cinematic motion"
+                        }
+                    }
                 ).json()
 
                 if "urls" not in prediction:
