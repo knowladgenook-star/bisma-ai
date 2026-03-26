@@ -3,3 +3,4 @@ openai
 pillow
 python-dotenv
 replicate
+pydantic==1.10.13
