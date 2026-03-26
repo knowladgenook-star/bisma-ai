@@ -2,8 +2,10 @@ import streamlit as st
 from openai import OpenAI
 import base64
 import os
+import requests
+import time
 
-# Initialize OpenAI client
+# ---------------- API CLIENT ----------------
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # ---------------- PAGE CONFIG ----------------
@@ -69,22 +71,19 @@ st.sidebar.title("🌱 Bisma.Ai")
 
 tool = st.sidebar.selectbox(
     "Choose Tool",
-    ["Chatbot", "Image Generator"]
+    ["Chatbot", "Image Generator", "Image → Video"]
 )
 
 # ---------------- CHATBOT ----------------
 if tool == "Chatbot":
     st.subheader("💬 AI Chat Assistant")
-    st.write("")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Show chat history
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
 
-    # User input
     user_input = st.chat_input("Ask anything...")
 
     if user_input:
@@ -104,7 +103,6 @@ if tool == "Chatbot":
 # ---------------- IMAGE GENERATOR ----------------
 elif tool == "Image Generator":
     st.subheader("🎨 AI Image Generator")
-    st.write("")
 
     prompt = st.text_input("Describe your image")
 
@@ -122,6 +120,60 @@ elif tool == "Image Generator":
             st.image(image_bytes, use_container_width=True)
         else:
             st.warning("Please enter a prompt!")
+
+
+# ---------------- IMAGE → VIDEO ----------------
+elif tool == "Image → Video":
+    st.subheader("🎬 Image to Video Generator")
+
+    image_url = st.text_input("Enter Image URL")
+
+    if st.button("Generate Video"):
+        if image_url:
+
+            api_token = os.getenv("REPLICATE_API_TOKEN")
+
+            headers = {
+                "Authorization": f"Token {api_token}",
+                "Content-Type": "application/json"
+            }
+
+            data = {
+                "version": "7836b0c54b5f3a4f0b9b51d6d5d9c0c1f1a6d5c7a6d4f8c1b0a5c6d7e8f9g0",
+                "input": {
+                    "image": image_url
+                }
+            }
+
+            response = requests.post(
+                "https://api.replicate.com/v1/predictions",
+                headers=headers,
+                json=data
+            )
+
+            prediction = response.json()
+
+            if "urls" not in prediction:
+                st.error("Error starting video generation")
+            else:
+                status_url = prediction["urls"]["get"]
+
+                with st.spinner("Generating video... please wait ⏳"):
+                    while True:
+                        result = requests.get(status_url, headers=headers).json()
+
+                        if result["status"] == "succeeded":
+                            video_url = result["output"]
+                            st.video(video_url)
+                            break
+
+                        elif result["status"] == "failed":
+                            st.error("Video generation failed")
+                            break
+
+                        time.sleep(3)
+        else:
+            st.warning("Please enter an image URL")
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
