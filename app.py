@@ -2,32 +2,29 @@ import streamlit as st
 from openai import OpenAI
 import base64
 import os
+import replicate
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Page config
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="Bisma.Ai", layout="wide")
 
 # ---------------- CUSTOM STYLING ----------------
 st.markdown("""
 <style>
-/* Background */
 body {
     background-color: #0e1117;
 }
 
-/* Main container */
 .block-container {
     padding-top: 2rem;
 }
 
-/* Sidebar */
 section[data-testid="stSidebar"] {
     background-color: #111827;
 }
 
-/* Buttons */
 .stButton>button {
     background-color: #10b981;
     color: white;
@@ -37,12 +34,10 @@ section[data-testid="stSidebar"] {
     font-weight: bold;
 }
 
-/* Input box */
 .stTextInput>div>div>input {
     border-radius: 10px;
 }
 
-/* Chat messages */
 [data-testid="stChatMessage"] {
     background-color: #1f2937;
     padding: 10px;
@@ -50,12 +45,10 @@ section[data-testid="stSidebar"] {
     margin-bottom: 10px;
 }
 
-/* Titles */
 h1, h2, h3 {
     color: #10b981;
 }
 
-/* Footer hide */
 footer {
     visibility: hidden;
 }
@@ -77,7 +70,7 @@ st.sidebar.title("🌱 Bisma.Ai")
 
 tool = st.sidebar.selectbox(
     "Choose Tool",
-    ["Chatbot", "Image Generator"]
+    ["Chatbot", "Image Generator", "Image → Video"]
 )
 
 # ---------------- CHATBOT ----------------
@@ -88,11 +81,9 @@ if tool == "Chatbot":
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Display chat history
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
 
-    # User input
     user_input = st.chat_input("Ask anything...")
 
     if user_input:
@@ -124,13 +115,39 @@ elif tool == "Image Generator":
                 size="1024x1024"
             )
 
-            # Decode base64 image
             image_base64 = result.data[0].b64_json
             image_bytes = base64.b64decode(image_base64)
 
             st.image(image_bytes, use_container_width=True)
         else:
             st.warning("Please enter a prompt!")
+
+
+# ---------------- IMAGE → VIDEO ----------------
+elif tool == "Image → Video":
+    st.subheader("🎬 Image to Video Generator")
+    st.write("Turn your image into a short AI video")
+
+    uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+
+    if uploaded_file:
+        st.image(uploaded_file)
+
+        if st.button("Generate Video"):
+            with st.spinner("Generating video... ⏳ This may take 30–60 seconds"):
+                output = replicate.run(
+                    "stability-ai/stable-video-diffusion:3f0457b1b6d5b6b6c1b8b9f5c9e5f8c8",
+                    input={
+                        "input_image": uploaded_file,
+                        "video_length": "14_frames",
+                        "fps": 6
+                    }
+                )
+
+                video_url = output[0]
+
+                st.video(video_url)
+
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
