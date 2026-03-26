@@ -97,7 +97,7 @@ def main_app():
             st.session_state.messages = []
             st.rerun()
 
-    # ---------------- IMAGE ----------------
+    # ---------------- IMAGE GENERATOR ----------------
     elif tool == "Image Generator":
         st.subheader("🎨 Image Generator")
 
@@ -116,12 +116,15 @@ def main_app():
             else:
                 st.warning("Please enter a prompt")
 
-    # ---------------- VIDEO ----------------
+    # ---------------- IMAGE → VIDEO ----------------
     elif tool == "Image → Video":
         st.subheader("🎬 Image to Video")
 
         uploaded_file = st.file_uploader("Upload image", type=["png", "jpg", "jpeg"])
         prompt = st.text_input("Describe motion")
+
+        if uploaded_file:
+            st.image(uploaded_file, caption="Preview", use_container_width=True)
 
         if st.button("Generate Video"):
             if uploaded_file:
@@ -132,9 +135,12 @@ def main_app():
                     st.error("Missing REPLICATE_API_TOKEN ❌")
                     st.stop()
 
-                # Upload image
+                # ✅ FIXED FILE HANDLING
+                image_bytes = uploaded_file.read()
+                uploaded_file.seek(0)
+
                 files = {
-                    "file": (uploaded_file.name, uploaded_file.read(), uploaded_file.type)
+                    "file": (uploaded_file.name, image_bytes, uploaded_file.type)
                 }
 
                 upload = requests.post(
@@ -145,7 +151,6 @@ def main_app():
 
                 upload_json = upload.json()
 
-                # ✅ SAFE CHECK (NO CRASH)
                 if "urls" not in upload_json:
                     st.error("Image upload failed ❌")
                     st.write(upload_json)
@@ -172,7 +177,6 @@ def main_app():
                     json=data
                 ).json()
 
-                # SAFE CHECK
                 if "urls" not in prediction:
                     st.error("Video generation failed ❌")
                     st.write(prediction)
@@ -192,7 +196,7 @@ def main_app():
                             st.video(video_url)
                             st.success("✅ Video ready!")
 
-                            # Download
+                            # Download button
                             video_bytes = requests.get(video_url).content
 
                             st.download_button(
@@ -214,7 +218,7 @@ def main_app():
             else:
                 st.warning("Please upload an image!")
 
-        # ---------------- GALLERY ----------------
+        # ---------------- VIDEO GALLERY ----------------
         if st.session_state.videos:
             st.markdown("## 🎬 Video Gallery")
 
