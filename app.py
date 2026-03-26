@@ -122,16 +122,45 @@ elif tool == "Image Generator":
             st.warning("Please enter a prompt!")
 
 
-# ---------------- IMAGE → VIDEO ----------------
+# ---------------- IMAGE → VIDEO (UPLOAD VERSION) ----------------
 elif tool == "Image → Video":
     st.subheader("🎬 Image to Video Generator")
 
-    image_url = st.text_input("Enter Image URL")
+    uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
+    prompt = st.text_input(
+        "Describe motion (optional)",
+        placeholder="e.g. cinematic movement, slow zoom, dramatic lighting..."
+    )
 
     if st.button("Generate Video"):
-        if image_url:
+        if uploaded_file:
 
             api_token = os.getenv("REPLICATE_API_TOKEN")
+
+            if not api_token:
+                st.error("Missing REPLICATE_API_TOKEN in environment variables")
+                st.stop()
+
+            # Read uploaded file
+            image_bytes = uploaded_file.read()
+
+            # Upload image to Replicate
+            upload_response = requests.post(
+                "https://api.replicate.com/v1/files",
+                headers={
+                    "Authorization": f"Token {api_token}",
+                    "Content-Type": "application/octet-stream"
+                },
+                data=image_bytes
+            )
+
+            upload_json = upload_response.json()
+            file_url = upload_json.get("urls", {}).get("get")
+
+            if not file_url:
+                st.error("Failed to upload image")
+                st.write(upload_json)  # debug info
+                st.stop()
 
             headers = {
                 "Authorization": f"Token {api_token}",
@@ -141,7 +170,8 @@ elif tool == "Image → Video":
             data = {
                 "version": "7836b0c54b5f3a4f0b9b51d6d5d9c0c1f1a6d5c7a6d4f8c1b0a5c6d7e8f9g0",
                 "input": {
-                    "image": image_url
+                    "image": file_url,
+                    "prompt": prompt if prompt else "cinematic motion"
                 }
             }
 
@@ -155,6 +185,7 @@ elif tool == "Image → Video":
 
             if "urls" not in prediction:
                 st.error("Error starting video generation")
+                st.write(prediction)
             else:
                 status_url = prediction["urls"]["get"]
 
@@ -169,11 +200,12 @@ elif tool == "Image → Video":
 
                         elif result["status"] == "failed":
                             st.error("Video generation failed")
+                            st.write(result)
                             break
 
                         time.sleep(3)
         else:
-            st.warning("Please enter an image URL")
+            st.warning("Please upload an image!")
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
