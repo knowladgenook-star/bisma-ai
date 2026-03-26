@@ -2,7 +2,6 @@ import streamlit as st
 from openai import OpenAI
 import base64
 import os
-import replicate
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -70,7 +69,7 @@ st.sidebar.title("🌱 Bisma.Ai")
 
 tool = st.sidebar.selectbox(
     "Choose Tool",
-    ["Chatbot", "Image Generator", "Image → Video"]
+    ["Chatbot", "Image Generator"]
 )
 
 # ---------------- CHATBOT ----------------
@@ -81,9 +80,11 @@ if tool == "Chatbot":
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+    # Show chat history
     for msg in st.session_state.messages:
         st.chat_message(msg["role"]).write(msg["content"])
 
+    # User input
     user_input = st.chat_input("Ask anything...")
 
     if user_input:
@@ -121,33 +122,6 @@ elif tool == "Image Generator":
             st.image(image_bytes, use_container_width=True)
         else:
             st.warning("Please enter a prompt!")
-
-
-# ---------------- IMAGE → VIDEO ----------------
-elif tool == "Image → Video":
-    st.subheader("🎬 Image to Video Generator")
-    st.write("Turn your image into a short AI video")
-
-    uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
-
-    if uploaded_file:
-        st.image(uploaded_file)
-
-        if st.button("Generate Video"):
-            with st.spinner("Generating video... ⏳ This may take 30–60 seconds"):
-                output = replicate.run(
-                    "stability-ai/stable-video-diffusion:3f0457b1b6d5b6b6c1b8b9f5c9e5f8c8",
-                    input={
-                        "input_image": uploaded_file,
-                        "video_length": "14_frames",
-                        "fps": 6
-                    }
-                )
-
-                video_url = output[0]
-
-                st.video(video_url)
-
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
