@@ -4,12 +4,31 @@ import base64
 import os
 import time
 import stripe
+import sqlite3
+import hashlib
 
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="Bisma.Ai", layout="wide")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+# ---------------- DATABASE ----------------
+conn = sqlite3.connect("users.db", check_same_thread=False)
+c = conn.cursor()
+
+c.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    password TEXT,
+    is_pro INTEGER DEFAULT 0
+)
+""")
+conn.commit()
+
+# ---------------- HELPERS ----------------
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
 # ---------------- SESSION ----------------
 if "user" not in st.session_state:
@@ -24,10 +43,18 @@ if "videos" not in st.session_state:
 if "is_pro" not in st.session_state:
     st.session_state.is_pro = False
 
-# ---------------- PAYMENT SUCCESS DETECTION ----------------
-query_params = st.query_params
+if "show_login" not in st.session_state:
+    st.session_state.show_login = False
 
-if "success" in query_params:
+# ---------------- PAYMENT SUCCESS ----------------
+params = st.query_params
+
+if "user" in params:
+    username = params["user"]
+
+    c.execute("UPDATE users SET is_pro=1 WHERE username=?", (username,))
+    conn.commit()
+
     st.session_state.is_pro = True
 
 # ---------------- STYLE ----------------
@@ -46,42 +73,81 @@ h1 { color: #10b981; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN ----------------
-def login():
-    st.title("🔐 Login to Bisma.Ai")
+# ---------------- LANDING PAGE ----------------
+def landing_page():
+    st.markdown("""
+    <h1 style='text-align:center;'>🌱 Bisma.Ai</h1>
+    <h3 style='text-align:center;'>Create. Imagine. Automate.</h3>
+    """, unsafe_allow_html=True)
+
+    st.write("")
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.info("💬 AI Chat")
+    col2.info("🎨 Image Generator")
+    col3.info("🎬 Video Creator (Pro)")
+
+    st.write("")
+
+    if st.button("Get Started"):
+        st.session_state.show_login = True
+
+# ---------------- LOGIN + SIGNUP ----------------
+def login_signup():
+
+    st.title("🔐 Login / Sign Up")
+
+    menu = st.radio("Choose", ["Login", "Sign Up"])
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
-    if st.button("Login"):
-        if username == "admin" and password == "1234":
-            st.session_state.user = username
-            st.success("Login successful!")
-            st.rerun()
-        else:
-            st.error("Invalid credentials")
+    if menu == "Sign Up":
+        if st.button("Create Account"):
+            hashed = hash_password(password)
+
+            try:
+                c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed))
+                conn.commit()
+                st.success("Account created! Please login.")
+            except:
+                st.error("User already exists")
+
+    elif menu == "Login":
+        if st.button("Login"):
+            hashed = hash_password(password)
+
+            c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, hashed))
+            user = c.fetchone()
+
+            if user:
+                st.session_state.user = username
+                st.session_state.is_pro = bool(user[2])
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid credentials")
 
 # ---------------- LOGOUT ----------------
 def logout():
     st.session_state.user = None
+    st.session_state.is_pro = False
     st.rerun()
 
 # ---------------- STRIPE ----------------
-def create_checkout_session():
-    try:
-        session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[{
-                "price": os.getenv("STRIPE_PRICE_ID"),
-                "quantity": 1,
-            }],
-            mode="subscription",
-            success_url="https://bisma-ai.onrender.com/?success=true",
-            cancel_url="https://bisma-ai.onrender.com/?canceled=true",
-        )
-        return session.url
-    except Exception as e:
-        return str(e)
+def create_checkout_session(username):
+    session = stripe.checkout.Session.create(
+        payment_method_types=["card"],
+        line_items=[{
+            "price": os.getenv("STRIPE_PRICE_ID"),
+            "quantity": 1,
+        }],
+        mode="subscription",
+        success_url=f"https://bisma-ai.onrender.com/?user={username}",
+        cancel_url="https://bisma-ai.onrender.com/",
+    )
+    return session.url
 
 # ---------------- MAIN APP ----------------
 def main_app():
@@ -100,12 +166,12 @@ def main_app():
     if st.sidebar.button("Logout"):
         logout()
 
-    # 💳 PAYMENT BUTTON
+    # Payment
     st.sidebar.markdown("## 💎 Upgrade")
 
     if st.sidebar.button("Upgrade to Pro"):
-        checkout_url = create_checkout_session()
-        st.sidebar.markdown(f"[👉 Click here to pay]({checkout_url})")
+        url = create_checkout_session(st.session_state.user)
+        st.sidebar.markdown(f"[👉 Pay here]({url})")
 
     tool = st.sidebar.selectbox(
         "Choose Tool",
@@ -138,7 +204,7 @@ def main_app():
             st.session_state.messages = []
             st.rerun()
 
-    # ---------------- IMAGE GENERATOR ----------------
+    # ---------------- IMAGE ----------------
     elif tool == "Image Generator":
         st.subheader("🎨 Image Generator")
 
@@ -155,37 +221,32 @@ def main_app():
                 image = base64.b64decode(result.data[0].b64_json)
                 st.image(image)
             else:
-                st.warning("Please enter a prompt")
+                st.warning("Enter prompt")
 
-    # ---------------- IMAGE → VIDEO (LOCKED FEATURE) ----------------
+    # ---------------- VIDEO ----------------
     elif tool == "Image → Video":
 
-        # 🔒 LOCK FOR FREE USERS
         if not st.session_state.is_pro:
-            st.subheader("🎬 Image to Video 🔒")
-
-            st.warning("This feature is available for Pro users only")
+            st.warning("🔒 Pro feature only")
 
             if st.button("Upgrade to Pro"):
-                checkout_url = create_checkout_session()
-                st.markdown(f"[👉 Click here to pay]({checkout_url})")
+                url = create_checkout_session(st.session_state.user)
+                st.markdown(f"[👉 Pay here]({url})")
 
             st.stop()
 
-        # ✅ PRO USERS ACCESS
         st.subheader("🎬 Image to Video")
 
         uploaded_file = st.file_uploader("Upload image", type=["png", "jpg", "jpeg"])
         prompt = st.text_input("Describe motion")
 
         if uploaded_file:
-            st.image(uploaded_file, caption="Preview", use_container_width=True)
+            st.image(uploaded_file)
 
         if st.button("Generate Video"):
             if uploaded_file:
 
-                # Demo generation (stable)
-                with st.spinner("Generating cinematic video... 🎥"):
+                with st.spinner("Creating video..."):
                     progress = st.progress(0)
 
                     for i in range(100):
@@ -197,30 +258,25 @@ def main_app():
                 st.session_state.videos.append(demo_video)
 
                 st.video(demo_video)
-                st.success("✅ Video ready!")
 
                 st.download_button(
-                    "📥 Download Video",
+                    "Download Video",
                     data=b"demo",
-                    file_name="bisma_video.mp4"
+                    file_name="video.mp4"
                 )
 
-            else:
-                st.warning("Please upload an image!")
+    # ---------------- GALLERY ----------------
+    if st.session_state.videos:
+        st.markdown("## 🎬 Video Gallery")
 
-        # ---------------- VIDEO GALLERY ----------------
-        if st.session_state.videos:
-            st.markdown("## 🎬 Video Gallery")
-
-            for vid in reversed(st.session_state.videos):
-                st.video(vid)
-
-            if st.button("🗑 Clear Gallery"):
-                st.session_state.videos = []
-                st.rerun()
+        for v in reversed(st.session_state.videos):
+            st.video(v)
 
 # ---------------- ROUTER ----------------
-if st.session_state.user:
-    main_app()
+if not st.session_state.user:
+    if not st.session_state.show_login:
+        landing_page()
+    else:
+        login_signup()
 else:
-    login()
+    main_app()
