@@ -21,6 +21,15 @@ if "messages" not in st.session_state:
 if "videos" not in st.session_state:
     st.session_state.videos = []
 
+if "is_pro" not in st.session_state:
+    st.session_state.is_pro = False
+
+# ---------------- PAYMENT SUCCESS DETECTION ----------------
+query_params = st.query_params
+
+if "success" in query_params:
+    st.session_state.is_pro = True
+
 # ---------------- STYLE ----------------
 st.markdown("""
 <style>
@@ -83,13 +92,18 @@ def main_app():
     # Sidebar
     st.sidebar.write(f"👤 {st.session_state.user}")
 
+    if st.session_state.is_pro:
+        st.sidebar.success("💎 Pro User")
+    else:
+        st.sidebar.warning("Free Plan")
+
     if st.sidebar.button("Logout"):
         logout()
 
     # 💳 PAYMENT BUTTON
-    st.sidebar.markdown("## 💎 Upgrade to Pro")
+    st.sidebar.markdown("## 💎 Upgrade")
 
-    if st.sidebar.button("Upgrade Now"):
+    if st.sidebar.button("Upgrade to Pro"):
         checkout_url = create_checkout_session()
         st.sidebar.markdown(f"[👉 Click here to pay]({checkout_url})")
 
@@ -143,8 +157,22 @@ def main_app():
             else:
                 st.warning("Please enter a prompt")
 
-    # ---------------- IMAGE → VIDEO ----------------
+    # ---------------- IMAGE → VIDEO (LOCKED FEATURE) ----------------
     elif tool == "Image → Video":
+
+        # 🔒 LOCK FOR FREE USERS
+        if not st.session_state.is_pro:
+            st.subheader("🎬 Image to Video 🔒")
+
+            st.warning("This feature is available for Pro users only")
+
+            if st.button("Upgrade to Pro"):
+                checkout_url = create_checkout_session()
+                st.markdown(f"[👉 Click here to pay]({checkout_url})")
+
+            st.stop()
+
+        # ✅ PRO USERS ACCESS
         st.subheader("🎬 Image to Video")
 
         uploaded_file = st.file_uploader("Upload image", type=["png", "jpg", "jpeg"])
@@ -156,7 +184,7 @@ def main_app():
         if st.button("Generate Video"):
             if uploaded_file:
 
-                # 💡 SAFE DEMO MODE (until real API added)
+                # Demo generation (stable)
                 with st.spinner("Generating cinematic video... 🎥"):
                     progress = st.progress(0)
 
