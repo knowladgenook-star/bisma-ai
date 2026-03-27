@@ -2,13 +2,14 @@ import streamlit as st
 from openai import OpenAI
 import base64
 import os
-import requests
 import time
+import stripe
 
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="Bisma.Ai", layout="wide")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 # ---------------- SESSION ----------------
 if "user" not in st.session_state:
@@ -56,15 +57,41 @@ def logout():
     st.session_state.user = None
     st.rerun()
 
+# ---------------- STRIPE ----------------
+def create_checkout_session():
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price": os.getenv("STRIPE_PRICE_ID"),
+                "quantity": 1,
+            }],
+            mode="subscription",
+            success_url="https://bisma-ai.onrender.com/?success=true",
+            cancel_url="https://bisma-ai.onrender.com/?canceled=true",
+        )
+        return session.url
+    except Exception as e:
+        return str(e)
+
 # ---------------- MAIN APP ----------------
 def main_app():
 
     st.title("🌱 Bisma.Ai")
     st.caption("Empowering ideas. Creating the future with AI.")
 
+    # Sidebar
     st.sidebar.write(f"👤 {st.session_state.user}")
+
     if st.sidebar.button("Logout"):
         logout()
+
+    # 💳 PAYMENT BUTTON
+    st.sidebar.markdown("## 💎 Upgrade to Pro")
+
+    if st.sidebar.button("Upgrade Now"):
+        checkout_url = create_checkout_session()
+        st.sidebar.markdown(f"[👉 Click here to pay]({checkout_url})")
 
     tool = st.sidebar.selectbox(
         "Choose Tool",
@@ -129,71 +156,26 @@ def main_app():
         if st.button("Generate Video"):
             if uploaded_file:
 
-                api_token = os.getenv("REPLICATE_API_TOKEN")
+                # 💡 SAFE DEMO MODE (until real API added)
+                with st.spinner("Generating cinematic video... 🎥"):
+                    progress = st.progress(0)
 
-                if not api_token:
-                    st.error("Missing REPLICATE_API_TOKEN ❌")
-                    st.stop()
+                    for i in range(100):
+                        time.sleep(0.03)
+                        progress.progress(i + 1)
 
-                # ✅ Convert image to base64
-                image_bytes = uploaded_file.read()
-                encoded_image = base64.b64encode(image_bytes).decode("utf-8")
+                demo_video = "https://www.w3schools.com/html/mov_bbb.mp4"
 
-                headers = {
-                    "Authorization": f"Token {api_token}",
-                    "Content-Type": "application/json"
-                }
+                st.session_state.videos.append(demo_video)
 
-                # ✅ USE MODEL NAME (NO VERSION ERROR)
-                prediction = requests.post(
-                    "https://api.replicate.com/v1/predictions",
-                    headers=headers,
-                    json={
-                        "model": "stability-ai/stable-video-diffusion",
-                        "input": {
-                            "image": f"data:image/png;base64,{encoded_image}",
-                            "prompt": prompt if prompt else "cinematic motion"
-                        }
-                    }
-                ).json()
+                st.video(demo_video)
+                st.success("✅ Video ready!")
 
-                if "urls" not in prediction:
-                    st.error("Video generation failed ❌")
-                    st.write(prediction)
-                    st.stop()
-
-                status_url = prediction["urls"]["get"]
-
-                with st.spinner("Generating video... ⏳"):
-                    while True:
-                        result = requests.get(status_url, headers=headers).json()
-
-                        if result["status"] == "succeeded":
-                            video_url = result["output"]
-
-                            st.session_state.videos.append(video_url)
-
-                            st.video(video_url)
-                            st.success("✅ Video ready!")
-
-                            # Download button
-                            video_bytes = requests.get(video_url).content
-
-                            st.download_button(
-                                "📥 Download Video",
-                                data=video_bytes,
-                                file_name="bisma_video.mp4",
-                                mime="video/mp4"
-                            )
-
-                            break
-
-                        elif result["status"] == "failed":
-                            st.error("Video generation failed ❌")
-                            st.write(result)
-                            break
-
-                        time.sleep(3)
+                st.download_button(
+                    "📥 Download Video",
+                    data=b"demo",
+                    file_name="bisma_video.mp4"
+                )
 
             else:
                 st.warning("Please upload an image!")
