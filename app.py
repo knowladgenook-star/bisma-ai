@@ -48,86 +48,98 @@ if "show_login" not in st.session_state:
 
 # ---------------- PAYMENT SUCCESS ----------------
 params = st.query_params
-
 if "user" in params:
     username = params["user"]
-
     c.execute("UPDATE users SET is_pro=1 WHERE username=?", (username,))
     conn.commit()
-
     st.session_state.is_pro = True
 
-# ---------------- STYLE ----------------
+# ---------------- PREMIUM UI ----------------
 st.markdown("""
 <style>
-body { background-color: #0e1117; }
-section[data-testid="stSidebar"] { background-color: #111827; }
-.stButton>button {
-    background-color: #10b981;
-    color: white;
-    border-radius: 10px;
-    height: 3em;
-    width: 100%;
+body { background-color: #0f172a; }
+
+section[data-testid="stSidebar"] {
+    background-color: #020617;
+    border-right: 1px solid #1e293b;
 }
-h1 { color: #10b981; text-align: center; }
+
+[data-testid="stChatMessage"] {
+    background-color: #111827;
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+}
+
+.stButton>button {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    border-radius: 12px;
+    height: 3em;
+    border: none;
+}
+
+.stTextInput input {
+    background-color: #020617;
+    color: white;
+}
+
+h1, h2, h3 {
+    color: #22c55e;
+    text-align: center;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LANDING PAGE ----------------
+# ---------------- LANDING ----------------
 def landing_page():
-    st.markdown("""
-    <h1 style='text-align:center;'>🌱 Bisma.Ai</h1>
-    <h3 style='text-align:center;'>Create. Imagine. Automate.</h3>
-    """, unsafe_allow_html=True)
-
-    st.write("")
+    st.title("🌱 Bisma.Ai")
+    st.subheader("Create. Imagine. Automate.")
 
     col1, col2, col3 = st.columns(3)
-
     col1.info("💬 AI Chat")
     col2.info("🎨 Image Generator")
     col3.info("🎬 Video Creator (Pro)")
 
-    st.write("")
-
     if st.button("Get Started"):
         st.session_state.show_login = True
 
-# ---------------- LOGIN + SIGNUP ----------------
+# ---------------- LOGIN ----------------
 def login_signup():
-
     st.title("🔐 Login / Sign Up")
 
-    menu = st.radio("Choose", ["Login", "Sign Up"])
+    choice = st.radio("Choose", ["Login", "Sign Up"])
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
-    if menu == "Sign Up":
+    if choice == "Sign Up":
         if st.button("Create Account"):
-            hashed = hash_password(password)
-
             try:
-                c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed))
+                c.execute(
+                    "INSERT INTO users VALUES (?, ?, 0)",
+                    (username, hash_password(password))
+                )
                 conn.commit()
-                st.success("Account created! Please login.")
+                st.success("Account created!")
             except:
-                st.error("User already exists")
+                st.error("User exists")
 
-    elif menu == "Login":
+    if choice == "Login":
         if st.button("Login"):
-            hashed = hash_password(password)
-
-            c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, hashed))
+            c.execute(
+                "SELECT * FROM users WHERE username=? AND password=?",
+                (username, hash_password(password))
+            )
             user = c.fetchone()
 
             if user:
                 st.session_state.user = username
                 st.session_state.is_pro = bool(user[2])
-                st.success("Login successful!")
+                st.success("Welcome!")
                 st.rerun()
             else:
-                st.error("Invalid credentials")
+                st.error("Invalid login")
 
 # ---------------- LOGOUT ----------------
 def logout():
@@ -153,13 +165,12 @@ def create_checkout_session(username):
 def main_app():
 
     st.title("🌱 Bisma.Ai")
-    st.caption("Empowering ideas. Creating the future with AI.")
 
     # Sidebar
     st.sidebar.write(f"👤 {st.session_state.user}")
 
     if st.session_state.is_pro:
-        st.sidebar.success("💎 Pro User")
+        st.sidebar.success("💎 Pro")
     else:
         st.sidebar.warning("Free Plan")
 
@@ -167,20 +178,17 @@ def main_app():
         logout()
 
     # Payment
-    st.sidebar.markdown("## 💎 Upgrade")
-
     if st.sidebar.button("Upgrade to Pro"):
         url = create_checkout_session(st.session_state.user)
         st.sidebar.markdown(f"[👉 Pay here]({url})")
 
     tool = st.sidebar.selectbox(
-        "Choose Tool",
+        "Tool",
         ["Chatbot", "Image Generator", "Image → Video"]
     )
 
     # ---------------- CHAT ----------------
     if tool == "Chatbot":
-        st.subheader("💬 Chat")
 
         for msg in st.session_state.messages:
             st.chat_message(msg["role"]).write(msg["content"])
@@ -197,20 +205,25 @@ def main_app():
 
             reply = response.choices[0].message.content
 
-            st.chat_message("assistant").write(reply)
+            placeholder = st.chat_message("assistant")
+            full = ""
+
+            for word in reply.split():
+                full += word + " "
+                time.sleep(0.02)
+                placeholder.write(full)
+
             st.session_state.messages.append({"role": "assistant", "content": reply})
 
-        if st.button("🗑 Clear Chat"):
+        if st.button("Clear Chat"):
             st.session_state.messages = []
-            st.rerun()
 
     # ---------------- IMAGE ----------------
     elif tool == "Image Generator":
-        st.subheader("🎨 Image Generator")
 
-        prompt = st.text_input("Describe your image")
+        prompt = st.text_input("Describe image")
 
-        if st.button("Generate Image"):
+        if st.button("Generate"):
             if prompt:
                 result = client.images.generate(
                     model="gpt-image-1",
@@ -220,56 +233,47 @@ def main_app():
 
                 image = base64.b64decode(result.data[0].b64_json)
                 st.image(image)
-            else:
-                st.warning("Enter prompt")
 
     # ---------------- VIDEO ----------------
     elif tool == "Image → Video":
 
         if not st.session_state.is_pro:
-            st.warning("🔒 Pro feature only")
+            st.warning("🔒 Pro only")
 
-            if st.button("Upgrade to Pro"):
+            if st.button("Upgrade"):
                 url = create_checkout_session(st.session_state.user)
                 st.markdown(f"[👉 Pay here]({url})")
 
             st.stop()
 
-        st.subheader("🎬 Image to Video")
+        uploaded = st.file_uploader("Upload image", type=["png", "jpg"])
 
-        uploaded_file = st.file_uploader("Upload image", type=["png", "jpg", "jpeg"])
-        prompt = st.text_input("Describe motion")
-
-        if uploaded_file:
-            st.image(uploaded_file)
+        if uploaded:
+            st.image(uploaded)
 
         if st.button("Generate Video"):
-            if uploaded_file:
-
-                with st.spinner("Creating video..."):
+            if uploaded:
+                with st.spinner("Generating..."):
                     progress = st.progress(0)
-
                     for i in range(100):
-                        time.sleep(0.03)
+                        time.sleep(0.02)
                         progress.progress(i + 1)
 
-                demo_video = "https://www.w3schools.com/html/mov_bbb.mp4"
+                demo = "https://www.w3schools.com/html/mov_bbb.mp4"
+                st.session_state.videos.append(demo)
 
-                st.session_state.videos.append(demo_video)
-
-                st.video(demo_video)
+                st.video(demo)
 
                 st.download_button(
-                    "Download Video",
+                    "Download",
                     data=b"demo",
                     file_name="video.mp4"
                 )
 
-    # ---------------- GALLERY ----------------
+    # Gallery
     if st.session_state.videos:
-        st.markdown("## 🎬 Video Gallery")
-
-        for v in reversed(st.session_state.videos):
+        st.subheader("🎬 Gallery")
+        for v in st.session_state.videos[::-1]:
             st.video(v)
 
 # ---------------- ROUTER ----------------
